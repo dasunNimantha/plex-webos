@@ -34,7 +34,7 @@ jobs:
           name: plex-webos-desktop-x86_64
           path: build/plex-webos
 
-  build-webos:
+  build-webos-armhf:
     name: webOS ARM Build (armhf)
     runs-on: ubuntu-latest
     steps:
@@ -60,7 +60,6 @@ jobs:
 
               # Create stub libs for linking (real libs are on the TV)
               echo "void __starfish_stub(void){}" > /tmp/stub.c
-              gcc -shared -o /usr/lib/libstarfish-media-pipeline.so /tmp/stub.c
               gcc -shared -o /usr/lib/libplayerAPIs.so /tmp/stub.c
 
               mkdir -p build-webos && cd build-webos
@@ -77,7 +76,6 @@ jobs:
           cp build-webos/plex-webos dist/
           cp webos/appinfo.json dist/
           
-          # Create a placeholder icon
           if [ ! -f webos/icon.png ]; then
             sudo apt-get install -y imagemagick
             convert -size 80x80 xc:'#E5A00D' \
@@ -93,18 +91,84 @@ jobs:
       - name: Upload IPK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: plex-webos-ipk
+          name: plex-webos-ipk-armhf
           path: '*.ipk'
 
-      - name: Upload ARM binary
+      - name: Upload ARM32 binary
         uses: actions/upload-artifact@v4
         with:
           name: plex-webos-armhf
           path: build-webos/plex-webos
 
+  build-webos-arm64:
+    name: webOS ARM Build (aarch64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU for ARM64 emulation
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build ARM64 binary in Docker
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            ubuntu:noble bash -c '
+              set -e
+              apt-get update
+              apt-get install -y \
+                build-essential cmake pkg-config \
+                libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev \
+                libcurl4-openssl-dev libgles2-mesa-dev
+
+              # Create stub libs for linking (real libs are on the TV)
+              echo "void __starfish_stub(void){}" > /tmp/stub.c
+              gcc -shared -o /usr/lib/libplayerAPIs.so /tmp/stub.c
+
+              mkdir -p build-webos && cd build-webos
+              cmake .. -DCMAKE_BUILD_TYPE=Release -DWEBOS_BUILD=ON
+              make -j$(nproc)
+            '
+
+      - name: Install ares-cli
+        run: sudo npm install -g @webos-tools/cli
+
+      - name: Package IPK
+        run: |
+          mkdir -p dist
+          cp build-webos/plex-webos dist/
+          cp webos/appinfo.json dist/
+          
+          if [ ! -f webos/icon.png ]; then
+            sudo apt-get install -y imagemagick
+            convert -size 80x80 xc:'#E5A00D' \
+              -gravity center -pointsize 36 -fill '#111' \
+              -annotate 0 'P' dist/icon.png
+          else
+            cp webos/icon.png dist/
+          fi
+          
+          ares-package dist/
+          ls -la *.ipk
+
+      - name: Upload IPK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plex-webos-ipk-arm64
+          path: '*.ipk'
+
+      - name: Upload ARM64 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: plex-webos-arm64
+          path: build-webos/plex-webos
+
   release:
     name: Create Release
-    needs: [build-desktop, build-webos]
+    needs: [build-desktop, build-webos-armhf, build-webos-arm64]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -117,7 +181,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            plex-webos-ipk/*.ipk
+            plex-webos-ipk-armhf/*.ipk
+            plex-webos-ipk-arm64/*.ipk
             plex-webos-desktop-x86_64/plex-webos
             plex-webos-armhf/plex-webos
+            plex-webos-arm64/plex-webos
           generate_release_notes: true
