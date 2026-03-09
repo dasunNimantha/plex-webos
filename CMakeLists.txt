@@ -18,7 +18,8 @@ if(WEBOS_BUILD)
     set(OPENGL_LIBRARIES GLESv2 EGL)
     set(STARFISH_LIBRARIES playerAPIs)
     # webOS TV uses /lib/ld-linux.so.3 instead of Ubuntu's /lib/ld-linux-armhf.so.3
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--dynamic-linker=/lib/ld-linux.so.3")
+    # Statically link libstdc++ and libgcc to avoid GLIBCXX version mismatches
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--dynamic-linker=/lib/ld-linux.so.3 -static-libstdc++ -static-libgcc")
 else()
     pkg_check_modules(SDL2 REQUIRED sdl2)
     pkg_check_modules(SDL2_IMAGE REQUIRED SDL2_image)
