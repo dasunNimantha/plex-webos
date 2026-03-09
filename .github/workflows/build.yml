@@ -50,31 +50,13 @@ jobs:
           docker run --rm --platform linux/arm/v7 \
             -v "${{ github.workspace }}:/src" \
             -w /src \
-            ubuntu:jammy bash -c '
+            dasunnimantha/webos-sdk:latest bash -c '
               set -e
-              apt-get update
-              apt-get install -y \
-                g++-11 gcc-11 cmake pkg-config patchelf \
-                libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev \
-                libcurl4-openssl-dev libgles2-mesa-dev
-
-              # Use GCC 11 to match TV GLIBCXX (max 3.4.29)
-              update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100
-              update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
-              update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-11 100
-              update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-11 100
-
-              # Create stub libs for linking (real libs are on the TV)
-              echo "void __starfish_stub(void){}" > /tmp/stub.c
-              gcc -shared -o /usr/lib/libplayerAPIs.so /tmp/stub.c
-
               mkdir -p build-webos && cd build-webos
               cmake .. -DCMAKE_BUILD_TYPE=Release -DWEBOS_BUILD=ON \
                 -DCMAKE_C_COMPILER=gcc-11 -DCMAKE_CXX_COMPILER=g++-11
               make -j$(nproc)
 
-              # Patch binary for webOS TV compatibility:
-              # TV has /lib/ld-linux.so.3, not /lib/ld-linux-armhf.so.3
               patchelf --set-interpreter /lib/ld-linux.so.3 plex-webos
               patchelf --replace-needed ld-linux-armhf.so.3 ld-linux.so.3 plex-webos || true
             '
@@ -128,28 +110,13 @@ jobs:
           docker run --rm --platform linux/arm64 \
             -v "${{ github.workspace }}:/src" \
             -w /src \
-            ubuntu:jammy bash -c '
+            dasunnimantha/webos-sdk:latest bash -c '
               set -e
-              apt-get update
-              apt-get install -y \
-                g++-11 gcc-11 cmake pkg-config patchelf \
-                libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev \
-                libcurl4-openssl-dev libgles2-mesa-dev
-
-              # Use GCC 11 to match TV GLIBCXX (max 3.4.29)
-              update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100
-              update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-11 100
-
-              # Create stub libs for linking (real libs are on the TV)
-              echo "void __starfish_stub(void){}" > /tmp/stub.c
-              gcc -shared -o /usr/lib/libplayerAPIs.so /tmp/stub.c
-
               mkdir -p build-webos && cd build-webos
               cmake .. -DCMAKE_BUILD_TYPE=Release -DWEBOS_BUILD=ON \
                 -DCMAKE_C_COMPILER=gcc-11 -DCMAKE_CXX_COMPILER=g++-11
               make -j$(nproc)
 
-              # Patch interpreter for webOS TV compatibility
               patchelf --set-interpreter /lib/ld-linux-aarch64.so.1 plex-webos || true
             '
 
