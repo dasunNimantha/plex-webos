@@ -3,10 +3,6 @@
 #include <string>
 #include <cstdint>
 
-#ifdef WEBOS_PLATFORM
-
-#else
-
 enum PF_EVENT_T {
     PF_EVENT_TYPE_FRAMEREADY = 0x0,
     PF_EVENT_TYPE_STR_STREAMING_INFO_PERI = 0x1,
@@ -44,7 +40,9 @@ enum PF_EVENT_T {
     PF_EVENT_USER_DEFINED = 0x270,
 };
 
-// Desktop stub: all methods are no-ops for compilation & testing
+// Stub class matching the real StarfishMediaAPIs ABI.
+// On the TV, the real libstarfish-media-pipeline.so is loaded at runtime.
+// For desktop and CI builds, methods are no-ops.
 class StarfishMediaAPIs {
 public:
     StarfishMediaAPIs(const char* = nullptr) {}
@@ -67,5 +65,3 @@ public:
     const char* getMediaID() { return ""; }
     const char* getVolume() { return ""; }
 };
-
-#endif
