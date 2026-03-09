@@ -40,55 +40,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up ARM64 multiarch
-        run: |
-          sudo dpkg --add-architecture arm64
-          
-          # Replace all sources with properly arch-pinned ones
-          # amd64 from the default mirrors, arm64 from ports
-          sudo tee /etc/apt/sources.list << 'SOURCES'
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse
-          deb [arch=amd64] http://archive.ubuntu.com/ubuntu noble-backports main restricted universe multiverse
-          deb [arch=amd64] http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-backports main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse
-          SOURCES
-          
-          # Remove any other source lists that might conflict
-          sudo rm -f /etc/apt/sources.list.d/*.list 2>/dev/null || true
-          sudo rm -f /etc/apt/sources.list.d/*.sources 2>/dev/null || true
-          
-          sudo apt-get update
+      - name: Set up QEMU for ARM64 emulation
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
 
-      - name: Install cross-compilation toolchain
+      - name: Build ARM64 binary in Docker
         run: |
-          sudo apt-get install -y \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            cmake pkg-config
-
-      - name: Install ARM64 libraries
-        run: |
-          sudo apt-get install -y \
-            libsdl2-dev:arm64 libsdl2-image-dev:arm64 libsdl2-ttf-dev:arm64 \
-            libcurl4-openssl-dev:arm64 libgles2-mesa-dev:arm64
-
-      - name: Configure PKG_CONFIG for cross-compilation
-        run: |
-          echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
-          echo "PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
-          echo "PKG_CONFIG_SYSROOT_DIR=/" >> $GITHUB_ENV
-
-      - name: Build for ARM64
-        run: |
-          mkdir build-webos && cd build-webos
-          cmake .. \
-            -DCMAKE_TOOLCHAIN_FILE=../toolchain-webos.cmake \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_FIND_ROOT_PATH="/usr/aarch64-linux-gnu;/usr/lib/aarch64-linux-gnu"
-          make -j$(nproc)
+          docker run --rm --platform linux/arm64 \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            ubuntu:noble bash -c '
+              set -e
+              apt-get update
+              apt-get install -y \
+                build-essential cmake pkg-config \
+                libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev \
+                libcurl4-openssl-dev libgles2-mesa-dev
+              mkdir -p build-webos && cd build-webos
+              cmake .. -DCMAKE_BUILD_TYPE=Release -DWEBOS_BUILD=ON
+              make -j$(nproc)
+            '
 
       - name: Install ares-cli
         run: sudo npm install -g @webos-tools/cli
@@ -99,7 +71,7 @@ jobs:
           cp build-webos/plex-webos dist/
           cp webos/appinfo.json dist/
           
-          # Create a placeholder icon if none exists
+          # Create a placeholder icon
           if [ ! -f webos/icon.png ]; then
             sudo apt-get install -y imagemagick
             convert -size 80x80 xc:'#E5A00D' \
