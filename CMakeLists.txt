@@ -16,12 +16,14 @@ if(WEBOS_BUILD)
     pkg_check_modules(SDL2_IMAGE REQUIRED SDL2_image)
     pkg_check_modules(SDL2_TTF REQUIRED SDL2_ttf)
     set(OPENGL_LIBRARIES GLESv2 EGL)
+    set(STARFISH_LIBRARIES starfish-media-pipeline)
 else()
     pkg_check_modules(SDL2 REQUIRED sdl2)
     pkg_check_modules(SDL2_IMAGE REQUIRED SDL2_image)
     pkg_check_modules(SDL2_TTF REQUIRED SDL2_ttf)
     find_package(OpenGL REQUIRED)
     set(OPENGL_LIBRARIES OpenGL::GL)
+    set(STARFISH_LIBRARIES "")
 endif()
 
 find_package(CURL REQUIRED)
@@ -58,6 +60,7 @@ target_link_libraries(plex-webos PRIVATE
     ${SDL2_TTF_LIBRARIES}
     ${CURL_LIBRARIES}
     ${OPENGL_LIBRARIES}
+    ${STARFISH_LIBRARIES}
     pthread
 )
 

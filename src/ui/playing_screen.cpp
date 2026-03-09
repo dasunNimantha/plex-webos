@@ -23,9 +23,11 @@ void App::render_playing() {
     auto state = player_.state();
     std::string status;
     switch (state) {
-        case media::PlayerState::Playing: status = "▶ Playing"; break;
-        case media::PlayerState::Paused:  status = "⏸ Paused"; break;
-        case media::PlayerState::Loading: status = "Loading..."; break;
+        case media::PlayerState::Playing:     status = "▶ Playing"; break;
+        case media::PlayerState::Paused:      status = "⏸ Paused"; break;
+        case media::PlayerState::Loading:     status = "Loading..."; break;
+        case media::PlayerState::EndOfStream: status = "Finished"; break;
+        case media::PlayerState::Error:       status = "Error"; break;
         default: status = "Stopped"; break;
     }
 

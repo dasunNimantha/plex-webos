@@ -57,6 +57,12 @@ jobs:
                 build-essential cmake pkg-config \
                 libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev \
                 libcurl4-openssl-dev libgles2-mesa-dev
+
+              # Create stub libstarfish-media-pipeline.so for linking
+              # The real library lives on the webOS TV filesystem
+              echo "void __starfish_stub(void){}" > /tmp/starfish_stub.c
+              gcc -shared -o /usr/lib/libstarfish-media-pipeline.so /tmp/starfish_stub.c
+
               mkdir -p build-webos && cd build-webos
               cmake .. -DCMAKE_BUILD_TYPE=Release -DWEBOS_BUILD=ON
               make -j$(nproc)
