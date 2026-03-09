@@ -54,7 +54,7 @@ jobs:
               set -e
               apt-get update
               apt-get install -y \
-                build-essential cmake pkg-config \
+                build-essential cmake pkg-config patchelf \
                 libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev \
                 libcurl4-openssl-dev libgles2-mesa-dev
 
@@ -65,6 +65,12 @@ jobs:
               mkdir -p build-webos && cd build-webos
               cmake .. -DCMAKE_BUILD_TYPE=Release -DWEBOS_BUILD=ON
               make -j$(nproc)
+
+              # Patch binary for webOS TV compatibility:
+              # TV has /lib/ld-linux.so.3, not /lib/ld-linux-armhf.so.3
+              patchelf --set-interpreter /lib/ld-linux.so.3 plex-webos
+              # Replace Ubuntu lib references that dont exist on webOS
+              patchelf --replace-needed ld-linux-armhf.so.3 ld-linux.so.3 plex-webos || true
             '
 
       - name: Install ares-cli
