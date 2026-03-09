@@ -1,0 +1,138 @@
+name: Build webOS IPK
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-desktop:
+    name: Desktop Build (x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake pkg-config \
+            libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev \
+            libcurl4-openssl-dev libgl-dev
+
+      - name: Build
+        run: |
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Upload desktop binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: plex-webos-desktop-x86_64
+          path: build/plex-webos
+
+  build-webos:
+    name: webOS ARM Build (aarch64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up ARM64 multiarch
+        run: |
+          sudo dpkg --add-architecture arm64
+          
+          # Add arm64 sources
+          sudo tee /etc/apt/sources.list.d/arm64.list << 'EOF'
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse
+          EOF
+          
+          # Pin existing sources to amd64 only
+          sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list || true
+          sudo sed -i 's/^deb \[arch=amd64\] \[arch=amd64\]/deb [arch=amd64]/' /etc/apt/sources.list || true
+          
+          sudo apt-get update
+
+      - name: Install cross-compilation toolchain
+        run: |
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            cmake pkg-config
+
+      - name: Install ARM64 libraries
+        run: |
+          sudo apt-get install -y \
+            libsdl2-dev:arm64 libsdl2-image-dev:arm64 libsdl2-ttf-dev:arm64 \
+            libcurl4-openssl-dev:arm64 libgles2-mesa-dev:arm64
+
+      - name: Configure PKG_CONFIG for cross-compilation
+        run: |
+          echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          echo "PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          echo "PKG_CONFIG_SYSROOT_DIR=/" >> $GITHUB_ENV
+
+      - name: Build for ARM64
+        run: |
+          mkdir build-webos && cd build-webos
+          cmake .. \
+            -DCMAKE_TOOLCHAIN_FILE=../toolchain-webos.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_FIND_ROOT_PATH="/usr/aarch64-linux-gnu;/usr/lib/aarch64-linux-gnu"
+          make -j$(nproc)
+
+      - name: Install ares-cli
+        run: sudo npm install -g @webos-tools/cli
+
+      - name: Package IPK
+        run: |
+          mkdir -p dist
+          cp build-webos/plex-webos dist/
+          cp webos/appinfo.json dist/
+          
+          # Create a placeholder icon if none exists
+          if [ ! -f webos/icon.png ]; then
+            sudo apt-get install -y imagemagick
+            convert -size 80x80 xc:'#E5A00D' \
+              -gravity center -pointsize 36 -fill '#111' \
+              -annotate 0 'P' dist/icon.png
+          else
+            cp webos/icon.png dist/
+          fi
+          
+          ares-package dist/
+          ls -la *.ipk
+
+      - name: Upload IPK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plex-webos-ipk
+          path: '*.ipk'
+
+      - name: Upload ARM binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: plex-webos-arm64
+          path: build-webos/plex-webos
+
+  release:
+    name: Create Release
+    needs: [build-desktop, build-webos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            plex-webos-ipk/*.ipk
+            plex-webos-desktop-x86_64/plex-webos
+            plex-webos-arm64/plex-webos
+          generate_release_notes: true

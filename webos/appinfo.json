@@ -1,0 +1,13 @@
+{
+    "id": "com.plex.webos",
+    "version": "0.1.0",
+    "vendor": "plex-webos",
+    "type": "native",
+    "main": "plex-webos",
+    "title": "Plex",
+    "icon": "icon.png",
+    "largeIcon": "icon.png",
+    "requiredPermissions": [
+        "all"
+    ]
+}
