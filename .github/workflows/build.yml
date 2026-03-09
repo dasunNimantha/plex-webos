@@ -35,19 +35,19 @@ jobs:
           path: build/plex-webos
 
   build-webos:
-    name: webOS ARM Build (aarch64)
+    name: webOS ARM Build (armhf)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up QEMU for ARM64 emulation
+      - name: Set up QEMU for ARM emulation
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: arm64
+          platforms: arm
 
-      - name: Build ARM64 binary in Docker
+      - name: Build ARM32 binary in Docker
         run: |
-          docker run --rm --platform linux/arm64 \
+          docker run --rm --platform linux/arm/v7 \
             -v "${{ github.workspace }}:/src" \
             -w /src \
             ubuntu:noble bash -c '
@@ -58,10 +58,10 @@ jobs:
                 libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev \
                 libcurl4-openssl-dev libgles2-mesa-dev
 
-              # Create stub libstarfish-media-pipeline.so for linking
-              # The real library lives on the webOS TV filesystem
-              echo "void __starfish_stub(void){}" > /tmp/starfish_stub.c
-              gcc -shared -o /usr/lib/libstarfish-media-pipeline.so /tmp/starfish_stub.c
+              # Create stub libs for linking (real libs are on the TV)
+              echo "void __starfish_stub(void){}" > /tmp/stub.c
+              gcc -shared -o /usr/lib/libstarfish-media-pipeline.so /tmp/stub.c
+              gcc -shared -o /usr/lib/libplayerAPIs.so /tmp/stub.c
 
               mkdir -p build-webos && cd build-webos
               cmake .. -DCMAKE_BUILD_TYPE=Release -DWEBOS_BUILD=ON
@@ -99,7 +99,7 @@ jobs:
       - name: Upload ARM binary
         uses: actions/upload-artifact@v4
         with:
-          name: plex-webos-arm64
+          name: plex-webos-armhf
           path: build-webos/plex-webos
 
   release:
@@ -119,5 +119,5 @@ jobs:
           files: |
             plex-webos-ipk/*.ipk
             plex-webos-desktop-x86_64/plex-webos
-            plex-webos-arm64/plex-webos
+            plex-webos-armhf/plex-webos
           generate_release_notes: true
